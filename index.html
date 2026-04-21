@@ -28,7 +28,7 @@
         const canvas = document.getElementById('juegoCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Propiedades del jugador
+
         const jugador = {
             x: 50,
             y: 300,
@@ -41,11 +41,11 @@
             enSuelo: false
         };
 
-        // Física
+
         const gravedad = 0.6;
         const friccion = 0.8;
 
-        // Estado de las teclas
+
         const teclas = {
             w: false,
             a: false,
@@ -53,7 +53,7 @@
             d: false
         };
 
-        // Escuchar cuando se presiona una tecla
+
         window.addEventListener('keydown', function(e) {
             const tecla = e.key.toLowerCase();
             if (teclas.hasOwnProperty(tecla)) {
@@ -61,7 +61,6 @@
             }
         });
 
-        // Escuchar cuando se suelta una tecla
         window.addEventListener('keyup', function(e) {
             const tecla = e.key.toLowerCase();
             if (teclas.hasOwnProperty(tecla)) {
@@ -69,62 +68,61 @@
             }
         });
 
-        // Función principal de actualización (Game Loop)
+
         function actualizar() {
-            // 1. Aplicar movimiento horizontal (A y D)
+
             if (teclas.a) {
                 jugador.velocidadX = -jugador.rapidez;
             } else if (teclas.d) {
                 jugador.velocidadX = jugador.rapidez;
             } else {
-                // Fricción para que no frene de golpe
+
                 jugador.velocidadX *= friccion; 
             }
 
-            // 2. Aplicar salto (W)
+
             if (teclas.w && jugador.enSuelo) {
                 jugador.velocidadY = -jugador.fuerzaSalto;
                 jugador.enSuelo = false;
             }
 
-            // 3. Aplicar gravedad
+
             jugador.velocidadY += gravedad;
 
-            // 4. Actualizar posiciones
+
             jugador.x += jugador.velocidadX;
             jugador.y += jugador.velocidadY;
 
-            // 5. Colisión con el suelo (Límites del canvas)
-            // El suelo será la parte inferior del canvas
+
             if (jugador.y + jugador.alto >= canvas.height) {
-                jugador.y = canvas.height - jugador.alto; // Lo ajustamos al borde
-                jugador.velocidadY = 0;                   // Detenemos la caída
-                jugador.enSuelo = true;                   // Puede volver a saltar
+                jugador.y = canvas.height - jugador.alto; 
+                jugador.velocidadY = 0;                   
+                jugador.enSuelo = true;                   
             } else {
                 jugador.enSuelo = false;
             }
 
-            // Evitar que salga por los lados
+           
             if (jugador.x < 0) jugador.x = 0;
             if (jugador.x + jugador.ancho > canvas.width) jugador.x = canvas.width - jugador.ancho;
 
             dibujar();
             
-            // Volver a llamar a la función en el próximo frame
+           
             requestAnimationFrame(actualizar);
         }
 
-        // Función para dibujar los elementos en pantalla
+       
         function dibujar() {
-            // Limpiar el canvas en cada frame
+          
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Dibujar al jugador (un cuadrado)
+           
             ctx.fillStyle = '#e74c3c';
             ctx.fillRect(jugador.x, jugador.y, jugador.ancho, jugador.alto);
         }
 
-        // Iniciar el juego
+        
         actualizar();
     </script>
 </body>
