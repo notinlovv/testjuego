@@ -2,132 +2,106 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego RPG Plataformas</title>
+    <title>RPG Plataformas - Cámara Seguimiento</title>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #2c3e50;
-        }
-        canvas {
-            background-color: #ecf0f1;
-            border: 4px solid #34495e;
-            box-shadow: 0px 0px 15px rgba(0,0,0,0.5);
-        }
+        body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        canvas { background: #87CEEB; border: 2px solid #fff; }
     </style>
 </head>
 <body>
-
-    <canvas id="juegoCanvas" width="800" height="400"></canvas>
+    <canvas id="canvas"></canvas>
 
     <script>
-        const canvas = document.getElementById('juegoCanvas');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
+        // Configuración de pantalla
+        canvas.width = 1280;
+        canvas.height = 720;
+
+        // Definimos un mundo más grande que la pantalla
+        const mundo = { ancho: 3000, alto: 720 };
 
         const jugador = {
-            x: 50,
-            y: 300,
-            ancho: 40,
-            alto: 40,
-            velocidadX: 0,
-            velocidadY: 0,
-            rapidez: 5,
-            fuerzaSalto: 12,
-            enSuelo: false
+            x: 100, y: 500, ancho: 50, alto: 50,
+            velX: 0, velY: 0, rapidez: 7, salto: 15, enSuelo: false
         };
 
+        const camara = { x: 0, y: 0 };
+        const gravedad = 0.8;
+        const teclas = {};
 
-        const gravedad = 0.6;
-        const friccion = 0.8;
+        // Obstáculos (suelo y plataformas) para probar la cámara
+        const plataformas = [
+            { x: 0, y: 650, w: 3000, h: 70 }, // Suelo largo
+            { x: 400, y: 500, w: 200, h: 20 },
+            { x: 800, y: 400, w: 200, h: 20 },
+            { x: 1200, y: 300, w: 200, h: 20 },
+            { x: 1600, y: 450, w: 300, h: 20 }
+        ];
 
+        window.onkeydown = (e) => teclas[e.key.toLowerCase()] = true;
+        window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
-        const teclas = {
-            w: false,
-            a: false,
-            s: false,
-            d: false
-        };
+        function bucle() {
+            // Movimiento
+            if (teclas['a']) jugador.velX = -jugador.rapidez;
+            else if (teclas['d']) jugador.velX = jugador.rapidez;
+            else jugador.velX *= 0.8;
 
-
-        window.addEventListener('keydown', function(e) {
-            const tecla = e.key.toLowerCase();
-            if (teclas.hasOwnProperty(tecla)) {
-                teclas[tecla] = true;
-            }
-        });
-
-        window.addEventListener('keyup', function(e) {
-            const tecla = e.key.toLowerCase();
-            if (teclas.hasOwnProperty(tecla)) {
-                teclas[tecla] = false;
-            }
-        });
-
-
-        function actualizar() {
-
-            if (teclas.a) {
-                jugador.velocidadX = -jugador.rapidez;
-            } else if (teclas.d) {
-                jugador.velocidadX = jugador.rapidez;
-            } else {
-
-                jugador.velocidadX *= friccion; 
-            }
-
-
-            if (teclas.w && jugador.enSuelo) {
-                jugador.velocidadY = -jugador.fuerzaSalto;
+            if (teclas['w'] && jugador.enSuelo) {
+                jugador.velY = -jugador.salto;
                 jugador.enSuelo = false;
             }
 
+            jugador.velY += gravedad;
+            jugador.x += jugador.velX;
+            jugador.y += jugador.velY;
 
-            jugador.velocidadY += gravedad;
+            // Colisiones simples con plataformas
+            jugador.enSuelo = false;
+            plataformas.forEach(p => {
+                if (jugador.x < p.x + p.w && jugador.x + jugador.ancho > p.x &&
+                    jugador.y + jugador.alto > p.y && jugador.y + jugador.alto < p.y + p.h + jugador.velY) {
+                    jugador.y = p.y - jugador.alto;
+                    jugador.velY = 0;
+                    jugador.enSuelo = true;
+                }
+            });
 
+            // Lógica de la Cámara (Centrar al jugador)
+            // Calculamos la posición ideal de la cámara
+            let objetivoX = jugador.x - canvas.width / 2 + jugador.ancho / 2;
+            
+            // Suavizado (Interpolación lineal)
+            camara.x += (objetivoX - camara.x) * 0.1;
 
-            jugador.x += jugador.velocidadX;
-            jugador.y += jugador.velocidadY;
-
-
-            if (jugador.y + jugador.alto >= canvas.height) {
-                jugador.y = canvas.height - jugador.alto; 
-                jugador.velocidadY = 0;                   
-                jugador.enSuelo = true;                   
-            } else {
-                jugador.enSuelo = false;
-            }
-
-           
-            if (jugador.x < 0) jugador.x = 0;
-            if (jugador.x + jugador.ancho > canvas.width) jugador.x = canvas.width - jugador.ancho;
+            // Limitar cámara a los bordes del mundo
+            if (camara.x < 0) camara.x = 0;
+            if (camara.x > mundo.ancho - canvas.width) camara.x = mundo.ancho - canvas.width;
 
             dibujar();
-            
-           
-            requestAnimationFrame(actualizar);
+            requestAnimationFrame(bucle);
         }
 
-       
         function dibujar() {
-          
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-           
-            ctx.fillStyle = '#e74c3c';
+            ctx.save(); // Guardar estado
+            ctx.translate(-camara.x, 0); // Solo movemos en X para este estilo
+
+            // Dibujar Plataformas
+            ctx.fillStyle = "#4a7c44";
+            plataformas.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+            // Dibujar Jugador
+            ctx.fillStyle = "#e74c3c";
             ctx.fillRect(jugador.x, jugador.y, jugador.ancho, jugador.alto);
+
+            ctx.restore(); // Restaurar para que la UI (si tuvieras) no se mueva
         }
 
-        
-        actualizar();
+        bucle();
     </script>
-</body>
-</html>
-<body>
-    
 </body>
 </html>
