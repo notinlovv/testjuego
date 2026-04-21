@@ -2,11 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>RPG Plataformas - Fondo Infinito</title>
+    <title>RPG Plataformas - Animación y Pinchos</title>
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         canvas { 
-            /* Para que el pixel art se vea nítido */
             image-rendering: pixelated; 
             border: 2px solid #fff; 
         }
@@ -19,53 +18,120 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // --- Configuración de pantalla ---
         canvas.width = 1280;
         canvas.height = 720;
-
-        // Definimos un mundo muy ancho (4000px)
         const mundo = { ancho: 4000, alto: 720 };
 
-        // --- Variables de Estado ---
         let assets_cargados = false;
-        let background_pattern = null; // Aquí guardaremos el mosaico
+        let background_pattern = null;
 
-        // --- PRECARGA DE ACTIVOS ---
-        // Referencia a tu imagen: images/cielopixelart.jpg
         const background_img = new Image();
         background_img.src = 'images/cielopixelart.jpg';
-
         background_img.onload = () => {
-            // Una vez cargada la imagen, creamos el patrón de mosaico
             background_pattern = ctx.createPattern(background_img, 'repeat');
             assets_cargados = true;
-            // Iniciamos el bucle del juego solo cuando la imagen esté lista
             iniciarJuego();
         };
+        background_img.onerror = () => {
+            console.error("No se pudo cargar el fondo, iniciando sin él.");
+            iniciarJuego(); 
+        };
 
-        // --- ENTIDADES Y FÍSICA (Base anterior) ---
+        // --- PUNTO DE INICIO ---
+        const inicioX = 100;
+        const inicioY = 300;
+
+        // --- JUGADOR ---
+        // Velocidad reducida (antes 7, ahora 4.5)
         const jugador = {
-            x: 200, y: 500, ancho: 50, alto: 50,
-            velX: 0, velY: 0, rapidez: 7, salto: 15, enSuelo: false
+            x: inicioX, y: inicioY, ancho: 40, alto: 50,
+            velX: 0, velY: 0, rapidez: 4.5, salto: 13, enSuelo: false,
+            estado: 'idle', // idle, run, jump
+            dir: 1 // 1 derecha, -1 izquierda
         };
 
         const camara = { x: 0, y: 0 };
         const gravedad = 0.8;
         const friccion = 0.85;
         const teclas = {};
+        let contadorFrames = 0; // Para medir el tiempo de las animaciones
+
+        // --- PLATAFORMAS Y TRAMPAS ---
+        const nivelPinchosY = 650; // A qué altura te mueres
 
         const plataformas = [
-            { x: 0, y: 650, w: 4000, h: 70 }, // Suelo muy largo
-            { x: 400, y: 500, w: 200, h: 20 },
-            { x: 800, y: 400, w: 200, h: 20 },
+            { x: 50, y: 500, w: 300, h: 20 },  // Plataforma inicial
+            { x: 450, y: 450, w: 200, h: 20 }, // Salto 1
+            { x: 800, y: 400, w: 200, h: 20 }, // Salto 2
             { x: 1200, y: 300, w: 200, h: 20 },
             { x: 1600, y: 450, w: 300, h: 20 }
         ];
 
+        // --- ANIMACIONES DEL STICKMAN PIXELADO ---
+        // La X es un pixel rojo, el espacio vacío es transparente
+        const animaciones = {
+            idle: [
+                ["  XXXX  ",
+                 "  XXXX  ",
+                 "   XX   ",
+                 " XXXXXX ",
+                 " X XX X ",
+                 " X XX X ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 "  X  X  ",
+                 " XX  XX "]
+            ],
+            run: [
+                ["  XXXX  ",
+                 "  XXXX  ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 " X XX   ",
+                 "   XX X ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 "  X  X  ",
+                 " XX   X "],
+                ["  XXXX  ",
+                 "  XXXX  ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 "   XX X ",
+                 " X XX   ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 "  X  X  ",
+                 "  X   XX"]
+            ],
+            jump: [
+                ["  XXXX  ",
+                 "  XXXX  ",
+                 " X XX X ",
+                 " XXXXXX ",
+                 "   XX   ",
+                 "   XX   ",
+                 "   XX   ",
+                 "  XXXX  ",
+                 "  X  X  ",
+                 " XX  XX "]
+            ]
+        };
+
         window.onkeydown = (e) => teclas[e.key.toLowerCase()] = true;
         window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
+        function morir() {
+            // Reiniciamos al jugador a su posición original
+            jugador.x = inicioX;
+            jugador.y = inicioY;
+            jugador.velX = 0;
+            jugador.velY = 0;
+        }
+
         function actualizar() {
+            contadorFrames++;
+
             // Movimiento
             if (teclas['a']) jugador.velX = -jugador.rapidez;
             else if (teclas['d']) jugador.velX = jugador.rapidez;
@@ -76,10 +142,13 @@
                 jugador.enSuelo = false;
             }
 
-            // Gravedad
             jugador.velY += gravedad;
             jugador.x += jugador.velX;
             jugador.y += jugador.velY;
+
+            // Determinar dirección (para voltear el dibujo)
+            if (jugador.velX > 0.5) jugador.dir = 1;
+            if (jugador.velX < -0.5) jugador.dir = -1;
 
             // Colisiones con plataformas
             jugador.enSuelo = false;
@@ -92,43 +161,100 @@
                 }
             });
 
-            // Lógica de la Cámara (Suavizado y Límites)
+            // Lógica de Muerte (Caer a los pinchos)
+            if (jugador.y + jugador.alto >= nivelPinchosY) {
+                morir();
+            }
+
+            // Evitar que salga por la izquierda del mundo
+            if (jugador.x < 0) jugador.x = 0;
+
+            // Determinar el estado de animación
+            if (!jugador.enSuelo) {
+                jugador.estado = 'jump';
+            } else if (Math.abs(jugador.velX) > 1) {
+                jugador.estado = 'run';
+            } else {
+                jugador.estado = 'idle';
+            }
+
+            // Cámara
             let objetivoX = jugador.x - canvas.width / 2 + jugador.ancho / 2;
             camara.x += (objetivoX - camara.x) * 0.1;
-
             if (camara.x < 0) camara.x = 0;
             if (camara.x > mundo.ancho - canvas.width) camara.x = mundo.ancho - canvas.width;
         }
 
-        function dibujar() {
-            // Primero, dibujamos el fondo de mosaico.
-            // Para que el fondo se repita infinitamente con la cámara,
-            // tenemos que desplazar la matriz de dibujo antes de pintar el patrón.
+        function dibujarStickman() {
+            let framesActuales = animaciones[jugador.estado];
+            let frameIndex = 0;
             
+            // Si está corriendo, alternamos entre los 2 frames de correr cada 10 ciclos
+            if (jugador.estado === 'run') {
+                frameIndex = Math.floor(contadorFrames / 10) % framesActuales.length;
+            }
+            let matriz = framesActuales[frameIndex];
+
             ctx.save();
-            // Desplazamos la matriz de dibujo del fondo con la cámara
+            // Movemos el origen al centro del jugador para poder voltearlo
+            ctx.translate(jugador.x + jugador.ancho / 2, jugador.y + jugador.alto / 2);
+            ctx.scale(jugador.dir, 1); // 1 = derecha, -1 = efecto espejo a la izquierda
+            
+            let tamPixel = 5; // Cada "pixel" en la matriz medirá 5x5 pixeles reales
+            ctx.fillStyle = '#e74c3c'; // Rojo
+            
+            for (let fila = 0; fila < matriz.length; fila++) {
+                for (let col = 0; col < matriz[fila].length; col++) {
+                    if (matriz[fila][col] === 'X') {
+                        // Dibujamos el cuadradito, restando la mitad para mantenerlo centrado
+                        ctx.fillRect((col - 4) * tamPixel, (fila - 5) * tamPixel, tamPixel, tamPixel);
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        function dibujarPinchos() {
+            ctx.fillStyle = '#7f8c8d'; // Gris metálico
+            ctx.beginPath();
+            for (let i = 0; i < mundo.ancho; i += 20) {
+                ctx.moveTo(i, nivelPinchosY + 40); // Base izquierda
+                ctx.lineTo(i + 10, nivelPinchosY); // Punta arriba
+                ctx.lineTo(i + 20, nivelPinchosY + 40); // Base derecha
+            }
+            ctx.fill();
+            
+            // Zona oscura debajo de los pinchos
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, nivelPinchosY + 40, mundo.ancho, mundo.alto - nivelPinchosY);
+        }
+
+        function dibujar() {
+            ctx.save();
             ctx.translate(-camara.x, -camara.y);
-            // El patrón se creará y repetirá *dentro* de este rectángulo
-            ctx.fillStyle = background_pattern;
-            ctx.fillRect(0, 0, mundo.ancho, mundo.alto); // Rellenamos todo el mundo
+            if (background_pattern) {
+                ctx.fillStyle = background_pattern;
+                ctx.fillRect(0, 0, mundo.ancho, mundo.alto);
+            } else {
+                // Color de respaldo por si la imagen falla
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(0, 0, mundo.ancho, mundo.alto);
+            }
             ctx.restore();
 
-            // Dibujamos el resto del mundo (Plataformas, Jugador) con la cámara
             ctx.save();
-            ctx.translate(-camara.x, 0); // Aplicamos el scroll de cámara
+            ctx.translate(-camara.x, 0);
 
             // Dibujar Plataformas
             ctx.fillStyle = "#4a7c44";
             plataformas.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
 
-            // Dibujar Jugador
-            ctx.fillStyle = "#e74c3c";
-            ctx.fillRect(jugador.x, jugador.y, jugador.ancho, jugador.alto);
+            dibujarPinchos();
+            dibujarStickman();
 
             ctx.restore();
         }
 
-        // --- Bucle principal ---
         function bucle() {
             actualizar();
             dibujar();
