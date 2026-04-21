@@ -2,10 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>RPG Plataformas - Cámara Seguimiento</title>
+    <title>RPG Plataformas - Fondo Infinito</title>
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        canvas { background: #87CEEB; border: 2px solid #fff; }
+        canvas { 
+            /* Para que el pixel art se vea nítido */
+            image-rendering: pixelated; 
+            border: 2px solid #fff; 
+        }
     </style>
 </head>
 <body>
@@ -15,25 +19,43 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Configuración de pantalla
+        // --- Configuración de pantalla ---
         canvas.width = 1280;
         canvas.height = 720;
 
-        // Definimos un mundo más grande que la pantalla
-        const mundo = { ancho: 3000, alto: 720 };
+        // Definimos un mundo muy ancho (4000px)
+        const mundo = { ancho: 4000, alto: 720 };
 
+        // --- Variables de Estado ---
+        let assets_cargados = false;
+        let background_pattern = null; // Aquí guardaremos el mosaico
+
+        // --- PRECARGA DE ACTIVOS ---
+        // Referencia a tu imagen: images/cielopixelart.jpg
+        const background_img = new Image();
+        background_img.src = 'images/cielopixelart.jpg';
+
+        background_img.onload = () => {
+            // Una vez cargada la imagen, creamos el patrón de mosaico
+            background_pattern = ctx.createPattern(background_img, 'repeat');
+            assets_cargados = true;
+            // Iniciamos el bucle del juego solo cuando la imagen esté lista
+            iniciarJuego();
+        };
+
+        // --- ENTIDADES Y FÍSICA (Base anterior) ---
         const jugador = {
-            x: 100, y: 500, ancho: 50, alto: 50,
+            x: 200, y: 500, ancho: 50, alto: 50,
             velX: 0, velY: 0, rapidez: 7, salto: 15, enSuelo: false
         };
 
         const camara = { x: 0, y: 0 };
         const gravedad = 0.8;
+        const friccion = 0.85;
         const teclas = {};
 
-        // Obstáculos (suelo y plataformas) para probar la cámara
         const plataformas = [
-            { x: 0, y: 650, w: 3000, h: 70 }, // Suelo largo
+            { x: 0, y: 650, w: 4000, h: 70 }, // Suelo muy largo
             { x: 400, y: 500, w: 200, h: 20 },
             { x: 800, y: 400, w: 200, h: 20 },
             { x: 1200, y: 300, w: 200, h: 20 },
@@ -43,22 +65,23 @@
         window.onkeydown = (e) => teclas[e.key.toLowerCase()] = true;
         window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
-        function bucle() {
+        function actualizar() {
             // Movimiento
             if (teclas['a']) jugador.velX = -jugador.rapidez;
             else if (teclas['d']) jugador.velX = jugador.rapidez;
-            else jugador.velX *= 0.8;
+            else jugador.velX *= friccion;
 
             if (teclas['w'] && jugador.enSuelo) {
                 jugador.velY = -jugador.salto;
                 jugador.enSuelo = false;
             }
 
+            // Gravedad
             jugador.velY += gravedad;
             jugador.x += jugador.velX;
             jugador.y += jugador.velY;
 
-            // Colisiones simples con plataformas
+            // Colisiones con plataformas
             jugador.enSuelo = false;
             plataformas.forEach(p => {
                 if (jugador.x < p.x + p.w && jugador.x + jugador.ancho > p.x &&
@@ -69,26 +92,30 @@
                 }
             });
 
-            // Lógica de la Cámara (Centrar al jugador)
-            // Calculamos la posición ideal de la cámara
+            // Lógica de la Cámara (Suavizado y Límites)
             let objetivoX = jugador.x - canvas.width / 2 + jugador.ancho / 2;
-            
-            // Suavizado (Interpolación lineal)
             camara.x += (objetivoX - camara.x) * 0.1;
 
-            // Limitar cámara a los bordes del mundo
             if (camara.x < 0) camara.x = 0;
             if (camara.x > mundo.ancho - canvas.width) camara.x = mundo.ancho - canvas.width;
-
-            dibujar();
-            requestAnimationFrame(bucle);
         }
 
         function dibujar() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Primero, dibujamos el fondo de mosaico.
+            // Para que el fondo se repita infinitamente con la cámara,
+            // tenemos que desplazar la matriz de dibujo antes de pintar el patrón.
+            
+            ctx.save();
+            // Desplazamos la matriz de dibujo del fondo con la cámara
+            ctx.translate(-camara.x, -camara.y);
+            // El patrón se creará y repetirá *dentro* de este rectángulo
+            ctx.fillStyle = background_pattern;
+            ctx.fillRect(0, 0, mundo.ancho, mundo.alto); // Rellenamos todo el mundo
+            ctx.restore();
 
-            ctx.save(); // Guardar estado
-            ctx.translate(-camara.x, 0); // Solo movemos en X para este estilo
+            // Dibujamos el resto del mundo (Plataformas, Jugador) con la cámara
+            ctx.save();
+            ctx.translate(-camara.x, 0); // Aplicamos el scroll de cámara
 
             // Dibujar Plataformas
             ctx.fillStyle = "#4a7c44";
@@ -98,10 +125,19 @@
             ctx.fillStyle = "#e74c3c";
             ctx.fillRect(jugador.x, jugador.y, jugador.ancho, jugador.alto);
 
-            ctx.restore(); // Restaurar para que la UI (si tuvieras) no se mueva
+            ctx.restore();
         }
 
-        bucle();
+        // --- Bucle principal ---
+        function bucle() {
+            actualizar();
+            dibujar();
+            requestAnimationFrame(bucle);
+        }
+
+        function iniciarJuego() {
+            bucle();
+        }
     </script>
 </body>
 </html>
